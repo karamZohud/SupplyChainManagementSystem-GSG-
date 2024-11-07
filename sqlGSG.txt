@@ -1,0 +1,202 @@
+create DATABASE supplyChain_db;
+
+show databases;
+
+use supplyChain_db;
+show tables;
+--1
+CREATE TABLE supllier (
+    Supplier_ID INT PRIMARY KEY,
+    Name VARCHAR(40),
+    Contact_Info VARCHAR(255),
+    Rating decimal(2, 1)
+);
+
+--2
+CREATE TABLE Products (
+    Product_ID INT PRIMARY KEY,
+    Name VARCHAR(40),
+    Price numeric(10),
+    Supplier_ID INT,
+    Stock_Quantity INT,
+    FOREIGN KEY (Supplier_ID) REFERENCES supllier (Supplier_ID) ON DELETE SET NULL
+);
+
+DESCRIBE Products;
+
+--3
+CREATE TABLE Customers (
+    Customer_ID INT PRIMARY KEY,
+    Name VARCHAR(40),
+    Address VARCHAR(225),
+    Email VARCHAR(225),
+    Credit_Score DECIMAL(4, 2)
+);
+
+--4
+CREATE TABLE Orders (
+    Order_ID INT PRIMARY KEY,
+    Customer_ID INT,
+    Order_Date DATE,
+    Shipping_Status TINYINT,
+    FOREIGN KEY (Customer_ID) REFERENCES Customers (Customer_ID) ON DELETE SET NULL
+);
+--5
+CREATE TABLE Order_Details (
+    Order_Detail_ID INT PRIMARY KEY,
+    Order_ID INT,
+    Product_ID INT,
+    Quantity INT,
+    Unit_Price VARCHAR(10),
+    Discount DECIMAL(4, 2),
+    FOREIGN KEY (Order_ID) REFERENCES Orders (Order_ID) ON DELETE CASCADE,
+    FOREIGN KEY (Product_ID) REFERENCES Products (Product_ID) ON DELETE SET NULL
+);
+--6
+CREATE TABLE Payments (
+    Payment_ID INT PRIMARY KEY,
+    Customer_ID INT,
+    Order_ID INT,
+    Payment_Date DATE,
+    Payment_Amount VARCHAR(40),
+    Payment_Method VARCHAR(40),
+    FOREIGN KEY (Customer_ID) REFERENCES Customers (Customer_ID) ON DELETE CASCADE,
+    FOREIGN KEY (Order_ID) REFERENCES Orders (Order_ID) ON DELETE SET NULL
+);
+
+SHOW TABLES;
+
+
+
+ALTER TABLE Products ADD CONSTRAINT CHECK_PRICE CHECK(Price>0)
+ALTER TABLE Customers ADD CONSTRAINT CHECK_CREDIT_SCORE CHECK(Credit_Score BETWEEN 300 AND 850 );
+CREATE TRIGGER UPDATE_STOCK  
+
+
+
+
+
+CREATE TRIGGER tr_update_stock 
+AFTER INSERT ON Order_Details
+FOR EACH ROW
+BEGIN
+    UPDATE Products 
+    SET Stock_Quantity = Stock_Quantity - NEW.Quantity
+    WHERE Product_ID = NEW.Product_ID;
+END;
+
+
+CREATE INDEX idx_orders_customer_id ON Orders (Customer_ID );
+CREATE INDEX idx_products_supplier_id ON Products (Supplier_ID );
+CREATE INDEX idx_order_Details_order_id ON Order_Details (Order_ID );
+CREATE INDEX idx_order_Details_product_id ON Order_Details (Product_ID );
+CREATE INDEX idx_payments_customer_id ON Payments (Customer_ID );
+CREATE INDEX idx_payments_order_id ON Payments (Order_ID );
+
+
+ 
+drop table Orders_partitioned;
+
+
+CREATE TABLE Orders_partitioned (
+    Order_ID INT ,
+    Customer_ID INT,
+    Order_Date DATE,
+    Shipping_Status TINYINT,
+    primary key ( Order_ID ,Order_Date )
+)
+PARTITION BY RANGE (YEAR(Order_Date)) (
+    PARTITION p2022 VALUES LESS THAN (2022) ,
+    PARTITION p2023 VALUES LESS THAN (2023)
+);
+
+
+
+SQL Queries:
+1)SELECT 
+    c.Customer_ID,
+    c.Name,
+    SUM(od.Quantity * od.Unit_Price * (1 - od.Discount / 100)) AS Total_Revenue
+FROM 
+    Customers c
+JOIN 
+    Orders o ON c.Customer_ID = o.Customer_ID
+JOIN 
+    Order_Details od ON o.Order_ID = od.Order_ID
+GROUP BY 
+    c.Customer_ID, c.Name;
+
+
+2)SELECT 
+    s.Supplier_ID,
+    s.Name,
+    SUM(p.Price * p.Stock_Quantity) AS Total_Value_Supplied,
+    AVG(s.Rating) AS Average_Rating
+FROM 
+    supllier s
+JOIN 
+    Products p ON s.Supplier_ID = p.Supplier_ID
+GROUP BY 
+    s.Supplier_ID, s.Name
+ORDER BY 
+    Total_Value_Supplied DESC
+LIMIT 3;
+
+
+3) SELECT 
+    p.Product_ID,
+    p.Name,
+    SUM(od.Quantity) AS Total_Quantity_Sold
+FROM 
+    Products p
+JOIN 
+    Order_Details od ON p.Product_ID = od.Product_ID
+JOIN 
+    supllier s ON p.Supplier_ID = s.Supplier_ID
+WHERE 
+    s.Rating >= 3
+GROUP BY 
+    p.Product_ID, p.Name
+ORDER BY 
+    Total_Quantity_Sold DESC;
+
+
+4)SELECT 
+    c.Customer_ID,
+    c.Name,
+    COUNT(o.Order_ID) AS Total_Orders,
+    AVG(DATEDIFF(p.Payment_Date, o.Order_Date)) AS Avg_Payment_Delay
+FROM 
+    Customers c
+JOIN 
+    Orders o ON c.Customer_ID = o.Customer_ID
+JOIN 
+    Payments p ON o.Order_ID = p.Order_ID
+GROUP BY 
+    c.Customer_ID, c.Name
+HAVING 
+    Total_Orders >= 3 AND Avg_Payment_Delay > 7;
+
+
+5)
+SELECT 
+    AVG(od.Discount) AS Average_Discount
+FROM 
+    Order_Details od
+JOIN 
+    Orders o ON od.Order_ID = o.Order_ID
+WHERE 
+    o.Order_Date >= DATE_SUB(CURDATE(), INTERVAL 3 MONTH);
+
+
+6)SELECT 
+    p.Name AS Product_Name,
+    AVG(p.Price) AS Average_Price,
+    COUNT(DISTINCT p.Supplier_ID) AS Supplier_Count
+FROM 
+    Products p
+GROUP BY 
+    p.Product_ID, p.Name
+HAVING 
+    Supplier_Count >= 3;
+
